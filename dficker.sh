@@ -6,7 +6,7 @@ output_file=()
 verbose=0
 
 # Internal variables
-version="1.5.1"
+version="1.5.2"
 name="Digital Forensics and Incident response artifacts piCKER v${version} (c) Odinokij_Kot"
 current_datetime=()
 tempfs=0
@@ -142,20 +142,20 @@ create_tempdir ()
 {
 	[ -z "$temp_dir" ] && temp_dir="/tmp/dficker_temp" && tempfs=1
 	[ -d "$temp_dir" ] && temp_dir+="/dficker_temp"
-	mkdir -p "${temp_dir}" 2> /dev/null
+	mkdir -p "${temp_dir}" &> /dev/null
 	if [ "$?" -eq "0" ]
 		then
 			temp_dir=$(readlink -f "${temp_dir}")
 			if [ "$tempfs" -eq "1" ]
 				then
-					sudo mount -t tmpfs dficker_tempfs "${temp_dir}" 2> /dev/null
+					sudo mount -t tmpfs dficker_tempfs "${temp_dir}" &> /dev/null
 					[ "$?" -ne "0" ] && error "Tempfs directory ${temp_dir} mount error"
 			fi
 		else
 			error "Temporary directory \"${temp_dir}\" creating error" 
 	fi
 	
-	sudo chmod -R a=rw,a+X "${temp_dir}" 2> /dev/null
+	sudo chmod -R a=rw,a+X "${temp_dir}" &> /dev/null
 	[ "${verbose}" -ne "0" ] && echo "Temporary directory: ${temp_dir} created"
 }
 
@@ -257,7 +257,7 @@ get_network_info ()
 	_file="${temp_dir}/network_info.txt"
 	touch "${_file}"
 	
-	if [ -x "$(command -v ifconfig)" ]
+	if [ -x "$(command -v ifconfig)" ] || [[ -e `whereis -b ifconfig | awk '{print $2}'` ]]
 		then
 			echo "ifconfig -a:" >> "${_file}"
 			sudo ifconfig -a &>> "${_file}"
@@ -284,14 +284,12 @@ get_network_info ()
 	[ -d "/etc/netplan" ] && sudo cp -Lr /etc/netplan "${temp_dir}/network" &> /dev/null
 	[ -d "/etc/NetworkManager" ] && sudo cp -Lr /etc/NetworkManager "${temp_dir}/network" &> /dev/null
 	[ -d "/etc/netctl" ] && sudo cp -Lr /etc/netctl "${temp_dir}/network" &> /dev/null
-	
+	[ -e /etc/network/interfaces ] && sudo cp -Lr /etc/network/interfaces* "${temp_dir}/network" &> /dev/null
 }
 
 # Picking package managers info
 get_package_managers_info ()
 {
-	# +DPKG +APT +-RPM YUM Pacman Zypper Portage +-Snap Flatpack aptitude 
-	
 	[ "${verbose}" -ne "0" ] && echo "Getting package managers info"
 	
 	# APT package manager
@@ -336,7 +334,7 @@ get_package_managers_info ()
 			sudo dpkg --get-selections | grep -v "deinstall" &>> "${_file}"
 			echo >> "${_file}"
 			
-			mkdir -p "${temp_dir}/dpkg" &> /dev/null
+			mkdir -p "${temp_dir}/dpkg/logs" &> /dev/null
 			sudo cp -Lr /etc/dpkg "${temp_dir}/dpkg/config" &> /dev/null
 			sudo cp -Lr /var/lib/dpkg "${temp_dir}/dpkg/lib" &> /dev/null
 			sudo cp -Lr /var/log/dpkg.log* "${temp_dir}/dpkg/logs" &> /dev/null
@@ -360,29 +358,110 @@ get_package_managers_info ()
 			echo "snap saved:" >> "${_file}"
 			sudo snap saved &>> "${_file}"
 			echo >> "${_file}"
+			
+			mkdir -p "${temp_dir}/snap" &> /dev/null
+			sudo cp -Lr /var/lib/snapd "${temp_dir}/snap/lib" &> /dev/null
+			
 	fi
 	
 	# RPM package manager
 	if [ -x "$(command -v rpm)" ]
 		then
-			# [ "${verbose}" -ne "0" ] && echo "RPM package manager found"
-			# _file="${temp_dir}/rpm_info.txt"
-			# touch "${_file}"
+			[ "${verbose}" -ne "0" ] && echo "RPM package manager found"
+			_file="${temp_dir}/rpm_info.txt"
+			touch "${_file}"
 			
-			# echo "dpkg-query -l:" >> "${_file}"
-			# sudo dpkg-query -l &>> "${_file}"
-			# echo >> "${_file}"
-			
-			# echo "dpkg --get-selections:" >> "${_file}"
-			# sudo dpkg --get-selections | grep -v "deinstall" &>> "${_file}"
-			# echo >> "${_file}"
+			echo "rpm -qa:" >> "${_file}"
+			sudo rpm -qa &>> "${_file}"
+			echo >> "${_file}"
 			
 			mkdir -p "${temp_dir}/rpm" &> /dev/null
 			sudo cp -Lr /etc/rpm "${temp_dir}/rpm/config" &> /dev/null
 			sudo cp -Lr /var/lib/rpm "${temp_dir}/rpm/lib" &> /dev/null
 			sudo cp -Lr /var/log/rpmpkgs "${temp_dir}/rpm/logs" &> /dev/null
 	fi
+
+	# YUM package manager
+	if [ -x "$(command -v yum)" ]
+		then
+			[ "${verbose}" -ne "0" ] && echo "YUM package manager found"
+			_file="${temp_dir}/yum_info.txt"
+			touch "${_file}"
+			
+			echo "yum list installed:" >> "${_file}"
+			sudo sudo yum list installed &>> "${_file}"
+			echo >> "${_file}"
+			
+			mkdir -p "${temp_dir}/yum/logs" &> /dev/null
+			sudo cp -Lr /etc/yum.conf "${temp_dir}/yum" &> /dev/null
+			sudo cp -Lr /etc/yum "${temp_dir}/yum/config" &> /dev/null
+			sudo cp -Lr /etc/yum.repos.d "${temp_dir}/yum/repos" &> /dev/null
+			sudo cp -Lr /var/log/yum.log* "${temp_dir}/yum/logs" &> /dev/null
+	fi
 	
+	# Pacman package manager
+	if [ -x "$(command -v pacman)" ]
+		then
+			[ "${verbose}" -ne "0" ] && echo "Pacman package manager found"
+			_file="${temp_dir}/pacman_info.txt"
+			touch "${_file}"
+			
+			echo "pacman -Qe:" >> "${_file}"
+			sudo sudo pacman -Qe &>> "${_file}"
+			echo >> "${_file}"
+			
+			echo "pacman -Qm:" >> "${_file}"
+			sudo sudo pacman -Qm &>> "${_file}"
+			echo >> "${_file}"
+
+			echo "pacman -Qn:" >> "${_file}"
+			sudo sudo pacman -Qn &>> "${_file}"
+			echo >> "${_file}"
+
+			echo "pacman -Qent:" >> "${_file}"
+			sudo sudo pacman -Qent &>> "${_file}"
+			echo >> "${_file}"
+
+			mkdir -p "${temp_dir}/pacman/config" &> /dev/null
+			sudo cp -Lr /etc/pacman* "${temp_dir}/pacman/config" &> /dev/null
+			sudo cp -Lr /var/lib/pacman "${temp_dir}/pacman/lib" &> /dev/null
+	fi
+
+	# Zypper package manager
+	if [ -x "$(command -v zypper)" ]
+		then
+			[ "${verbose}" -ne "0" ] && echo "Zypper package manager found"
+			_file="${temp_dir}/zypper_info.txt"
+			touch "${_file}"
+			
+			echo "zypper se --installed-only:" >> "${_file}"
+			sudo sudo zypper se --installed-only &>> "${_file}"
+			echo >> "${_file}"
+
+			mkdir -p "${temp_dir}/zypper/config" &> /dev/null
+			sudo cp -Lr /etc/zypp "${temp_dir}/zypper/config" &> /dev/null
+			sudo cp -Lr /var/log/zypp "${temp_dir}/zypper/logs" &> /dev/null
+	fi
+	
+	# DNF package manager
+	if [ -x "$(command -v dnf)" ]
+		then
+			[ "${verbose}" -ne "0" ] && echo "DNF package manager found"
+			_file="${temp_dir}/dnf_info.txt"
+			touch "${_file}"
+			
+			echo "dnf list installed:" >> "${_file}"
+			sudo sudo dnf list installed &>> "${_file}"
+			echo >> "${_file}"
+			
+			echo "dnf history list:" >> "${_file}"
+			sudo dnf history listd &>> "${_file}"
+			echo >> "${_file}"
+			
+			mkdir -p "${temp_dir}/dnf/config" &> /dev/null
+			sudo cp -Lr /etc/dnf "${temp_dir}/dnf/config" &> /dev/null
+			sudo cp -Lr /etc/yum.repos.d "${temp_dir}/dnf/repos" &> /dev/null
+	fi
 }
 
 # Main function
@@ -422,50 +501,7 @@ main ()
 	cleaning
 	exit 0
 }
+
 main "$@"
-
-echo "Out of main!!!"
-exit 100
-
-# End of script
-
-
-
-
-
-
-curl_path=`whereis -b curl | awk '{print $2}'`
-
-if [ -z "$curl_path" ]
-then
-  echo "Утилита curl в системе не обнаружена. Установите её и попробуйте опять."
-  exit 3
-fi
-
-
-
-
-
-
-aptitude search '~i!~M'
-
-declare -A osInfo;
-osInfo[/etc/redhat-release]=yum
-osInfo[/etc/arch-release]=pacman
-osInfo[/etc/gentoo-release]=emerge
-osInfo[/etc/SuSE-release]=zypp
-osInfo[/etc/debian_version]=apt-get
-osInfo[/etc/alpine-release]=apk
-for f in ${!osInfo[@]}
-do
-    if [[ -f $f ]];then
-        echo Package manager: ${osInfo[$f]}
-    fi
-done
-
-- packagesNeeded='curl jq'
- - if [ -x "$(command -v apk)" ];       then sudo apk add --no-cache $packagesNeeded
- - elif [ -x "$(command -v apt-get)" ]; then sudo apt-get install $packagesNeeded
- - elif [ -x "$(command -v dnf)" ];     then sudo dnf install $packagesNeeded
- - elif [ -x "$(command -v zypper)" ];  then sudo zypper install $packagesNeeded
- - else echo "FAILED TO INSTALL PACKAGE: Package manager not found. You must manually install: $packagesNeeded">&2; fi
+echo "Out of main!"
+exit 10
