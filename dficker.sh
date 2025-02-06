@@ -6,7 +6,7 @@ output_file=()
 verbose=0
 
 # Internal variables
-version="1.5.2"
+version="1.6.0"
 name="Digital Forensics and Incident response artifacts piCKER v${version} (c) Odinokij_Kot"
 current_datetime=()
 tempfs=0
@@ -29,7 +29,7 @@ usage_message ()
 	echo "       [-o|--output]   -- Set output archive file name"
 	echo "       [-t|--tempdir]  -- Set temporary work directory"
 	echo "       [-h|--help]     -- Print this help message and exit"
-    echo "       [-V|--version]  -- Print version information and exit"
+	echo "       [-V|--version]  -- Print version information and exit"
 	echo "       [-v|--verbose]  -- Print more details"
 	echo
 }
@@ -54,11 +54,11 @@ load_config ()
 
 error()
 {
-    echo "`basename \"${full_name}\"`: $*" >&2
-    exit 1
+	echo "`basename \"${full_name}\"`: $*" >&2
+	exit 1
 }
 
-parse_flags()
+parse_flags ()
 {
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -166,7 +166,7 @@ create_report ()
 	_temp=$(pwd)
 	sudo chmod -R a=rw,a+X "${temp_dir}" &> /dev/null
 	cd "${temp_dir}"
-	tar -czf "${output_file}" *
+	tar -czf "${output_file}" * &> /dev/null
 	cd "${_temp}"
 	echo "Report \"${output_file}\" created"
 }
@@ -306,11 +306,11 @@ get_package_managers_info ()
 			echo >> "${_file}"
 			
 			echo "apt list --installed:" >> "${_file}"
-			sudo sudo apt list --installed &>> "${_file}"
+			sudo apt list --installed &>> "${_file}"
 			echo >> "${_file}"
 			
 			echo "apt-mark showmanual:" >> "${_file}"
-			sudo sudo apt-mark showmanual &>> "${_file}"
+			sudo apt-mark showmanual &>> "${_file}"
 			echo >> "${_file}"
 			
 			mkdir -p "${temp_dir}/apt" &> /dev/null
@@ -389,7 +389,7 @@ get_package_managers_info ()
 			touch "${_file}"
 			
 			echo "yum list installed:" >> "${_file}"
-			sudo sudo yum list installed &>> "${_file}"
+			sudo yum list installed &>> "${_file}"
 			echo >> "${_file}"
 			
 			mkdir -p "${temp_dir}/yum/logs" &> /dev/null
@@ -407,19 +407,19 @@ get_package_managers_info ()
 			touch "${_file}"
 			
 			echo "pacman -Qe:" >> "${_file}"
-			sudo sudo pacman -Qe &>> "${_file}"
+			sudo pacman -Qe &>> "${_file}"
 			echo >> "${_file}"
 			
 			echo "pacman -Qm:" >> "${_file}"
-			sudo sudo pacman -Qm &>> "${_file}"
+			sudo pacman -Qm &>> "${_file}"
 			echo >> "${_file}"
 
 			echo "pacman -Qn:" >> "${_file}"
-			sudo sudo pacman -Qn &>> "${_file}"
+			sudo pacman -Qn &>> "${_file}"
 			echo >> "${_file}"
 
 			echo "pacman -Qent:" >> "${_file}"
-			sudo sudo pacman -Qent &>> "${_file}"
+			sudo pacman -Qent &>> "${_file}"
 			echo >> "${_file}"
 
 			mkdir -p "${temp_dir}/pacman/config" &> /dev/null
@@ -435,7 +435,7 @@ get_package_managers_info ()
 			touch "${_file}"
 			
 			echo "zypper se --installed-only:" >> "${_file}"
-			sudo sudo zypper se --installed-only &>> "${_file}"
+			sudo zypper se --installed-only &>> "${_file}"
 			echo >> "${_file}"
 
 			mkdir -p "${temp_dir}/zypper/config" &> /dev/null
@@ -451,7 +451,7 @@ get_package_managers_info ()
 			touch "${_file}"
 			
 			echo "dnf list installed:" >> "${_file}"
-			sudo sudo dnf list installed &>> "${_file}"
+			sudo dnf list installed &>> "${_file}"
 			echo >> "${_file}"
 			
 			echo "dnf history list:" >> "${_file}"
@@ -462,6 +462,70 @@ get_package_managers_info ()
 			sudo cp -Lr /etc/dnf "${temp_dir}/dnf/config" &> /dev/null
 			sudo cp -Lr /etc/yum.repos.d "${temp_dir}/dnf/repos" &> /dev/null
 	fi
+}
+
+# Picking Cron info
+get_cron_info ()
+{
+	[ "${verbose}" -ne "0" ] && echo "Getting cron schedule info"
+	if [ -x "$(command -v crontab)" ]
+		then
+			mkdir -p "${temp_dir}/cron/etc" &> /dev/null
+			sudo cp -Lr /etc/cron* "${temp_dir}/cron/etc" &> /dev/null
+			sudo cp -Lr /var/spool/cron/crontabs "${temp_dir}/cron" &> /dev/null
+	fi
+}
+
+# Picking At info
+get_at_info ()
+{
+	[ "${verbose}" -ne "0" ] && echo "Getting at schedule info"
+	if [ -x "$(command -v at)" ]
+		then
+			_file="${temp_dir}/at_info.txt"
+			touch "${_file}"
+			
+			echo "at -l:" >> "${_file}"
+			sudo at -l &>> "${_file}"
+			echo >> "${_file}"
+	
+			mkdir -p "${temp_dir}/at/etc" "${temp_dir}/at/spool" &> /dev/null
+			sudo cp -Lr /etc/at* "${temp_dir}/at/etc" &> /dev/null
+			sudo cp -Lr /var/spool/cron/at* "${temp_dir}/at/spool" &> /dev/null
+	fi
+}
+
+# Picking Systemd info
+get_systemd_info ()
+{
+	[ "${verbose}" -ne "0" ] && echo "Getting Systemd info"
+	if [ -x "$(command -v systemctl)" ]
+		then
+			_file="${temp_dir}/systemd_info.txt"
+			touch "${_file}"
+			
+			echo "systemctl --all list-machines:" >> "${_file}"
+			sudo systemctl --all list-machines &>> "${_file}"
+			echo >> "${_file}"
+			
+			echo "systemctl --all list-jobs:" >> "${_file}"
+			sudo systemctl --all list-jobs &>> "${_file}"
+			echo >> "${_file}"
+
+			echo "systemctl --all list-units:" >> "${_file}"
+			sudo systemctl --all list-units &>> "${_file}"
+			echo >> "${_file}"
+
+			echo "systemctl list-unit-files:" >> "${_file}"
+			sudo systemctl --all list-unit-files &>> "${_file}"
+			echo >> "${_file}"
+		
+			mkdir -p "${temp_dir}/systemd/etc" &> /dev/null
+			sudo cp -Lr /etc/systemd/* "${temp_dir}/systemd/etc" &> /dev/null
+			sudo cp -Lr /usr/lib/systemd "${temp_dir}/systemd/lib" &> /dev/null
+			sudo cp -Lr /run/systemd "${temp_dir}/systemd/run" &> /dev/null
+			sudo systemd-analyze dot > "${temp_dir}/systemd/systemd-graph.dot" 2> /dev/null
+	fi	
 }
 
 # Main function
@@ -494,6 +558,9 @@ main ()
 	get_process_info
 	get_network_info
 	get_package_managers_info
+	get_cron_info
+	get_at_info
+	get_systemd_info
 	[ "${verbose}" -ne "0" ] && echo 
 	
 	# Saving report and cleanup work directory
