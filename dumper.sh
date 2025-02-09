@@ -7,7 +7,7 @@ hash_algo=()
 compress=0
 
 # Internal variables
-version="1.0.0"
+version="1.0.1"
 name="Dumper v${version} (c) Odinokij_Kot"
 full_name=$(readlink -f "${0}")
 hash_whitelist=(b2sum md5sum shasum sha1sum sha224sum sha256sum sha384sum sha512sum)
@@ -84,8 +84,10 @@ select_hash_algo ()
 
 select_folder ()
 {
-	output_folder=$(lsblk -dno MODEL,SERIAL "${work_device}" | sed 's/ /_/g')
-	[ -z "${output_folder}" ] && output_folder="image"
+	_name_serial=$(lsblk -dno MODEL,SERIAL "${work_device}" | sed '/^ \{2,\}$/d')
+	[ -n "${_name_serial}" ] && output_folder=$(echo "$_name_serial" | sed 's/ /_/g') || \
+		output_folder="image_$(basename ${work_device})"
+
 	read -r -p "Enter folder name (default: ${output_folder}): " 
 	[ -n "${REPLY}" ] && output_folder="${REPLY}"
 	output_folder="$(dirname "${full_name}")/${output_folder}.$(date +%F_%H.%M.%S)"
@@ -93,7 +95,7 @@ select_folder ()
 
 set_compress ()
 {
-	read -r -p "Create compressed image? Y/n (default: n): "
+	read -r -p "Create compressed image? [Y/n] (default: n): "
 	[[ ("${REPLY}" = "Y") || ("${REPLY}" = "y") ]] && compress=1
 }
 
@@ -104,7 +106,7 @@ warning ()
 	echo "Folder: ${output_folder}"
 	echo -n "Hash algorithms: "; [ -z "${hash_algo[0]}" ] && echo "None" || echo "${hash_algo[@]}"
 	echo -n "Compressed: "; [ "${compress}" -eq "0" ] && echo "No" || echo "Yes"
-	read -r -p "All correct? Y/n (default: n): "
+	read -r -p "All correct? [Y/n] (default: n): "
 	[[ ("${REPLY}" != "Y") && ("${REPLY}" != "y") ]] && exit 0
 }
 
